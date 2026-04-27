@@ -8,6 +8,8 @@
 |------|------|
 | プロジェクト名 | youtube_speed |
 | 説明 | youtubeのspeedコントロール拡張 |
+| リポジトリ | [GitHub](https://github.com/poyoyon-ceee/youtube_speed) |
+| ブランチ戦略 | `main`(安定版), `develop`(開発用) |
 | 最終更新 | 2026-04-27 |
 | バージョン | 0.1.0 |
 
