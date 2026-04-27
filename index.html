@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>youtube_speed</title>
+    <!-- Google Fonts (オンライン) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="container">
+        <h1>youtube_speed</h1>
+        <p>オンラインアプリのテンプレートです。</p>
+        
+        <div id="app">
+            <!-- ここにコンテンツを追加してください -->
+        </div>
+    </div>
+
+    <!-- スクリプト -->
+    <script type="module" src="src/core/event-bus.js"></script>
+    <script type="module" src="src/core/state-manager.js"></script>
+    <script type="module" src="src/utils/sanitizer.js"></script>
+    <script type="module" src="src/utils/migration.js"></script>
+    <script type="module" src="src/utils/config.js"></script>
+    <script type="module" src="src/utils/diff.js"></script>
+    
+    <script>
+        // アプリケーション初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('✅ アプリケーション起動');
+            
+            // EventBusが利用可能な場合
+            if (window.EventBus) {
+                console.log('✅ EventBus 利用可能');
+            }
+            
+            // StateManagerが利用可能な場合
+            if (window.StateManager) {
+                console.log('✅ StateManager 利用可能');
+            }
+        });
+    </script>
+</body>
+</html>
