@@ -11,8 +11,7 @@
     "checkJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "declaration": true,
-    "sourceMap": true
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "src/**/*.js"],
   "exclude": ["node_modules", "dist", "DATA"]
