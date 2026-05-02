@@ -19,14 +19,14 @@
             this._isApplying = false; // ループ防止フラグ
             this._lastUrl = location.href; // URL変更検知用
             
-            // 設定の初期化
+            // 設定の初期化（chrome.storage の読み込み完了後に init）
             if (window.ConfigManager) {
                 window.ConfigManager.setDefault('speed', 1.0);
                 window.ConfigManager.setDefault('autoVideoTab', false);
-                window.ConfigManager.loadFromStorage(CONFIG_KEY);
+                window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => this.init());
+            } else {
+                this.init();
             }
-            
-            this.init();
         }
 
         init() {
@@ -52,6 +52,19 @@
             window.addEventListener('popstate', () => {
                 this.handleRedirect();
             });
+
+            // ポップアップ等からの設定変更を即反映
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+                this._onStorageChanged = (changes, area) => {
+                    if (area !== 'local' || !changes[CONFIG_KEY]) return;
+                    window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => {
+                        this.handleRedirect();
+                        this.syncVideoElement();
+                        this.updateActiveButton();
+                    });
+                };
+                chrome.storage.onChanged.addListener(this._onStorageChanged);
+            }
 
             // 初回実行時
             this.handleRedirect();
