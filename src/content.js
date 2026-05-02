@@ -16,56 +16,13 @@ import './utils/config.js';
     const VIDEO_SELECTOR = 'video.html5-main-video';
     const CONFIG_KEY = 'yt_speed_settings';
 
-    /**
-     * チャンネル「ホーム」相当の URL を「動画」タブ URL に変換する。変換不要なら null。
-     * @param {string} fullHref
-     * @returns {string|null}
-     */
-    function channelHomeToVideosUrl(fullHref) {
-        if (!fullHref || typeof fullHref !== 'string') return null;
-        let u;
-        try {
-            u = new URL(fullHref);
-        } catch (e) {
-            return null;
-        }
-        const host = u.hostname.replace(/^www\./, '');
-        if (host !== 'youtube.com' && host !== 'm.youtube.com') return null;
-
-        let path = u.pathname;
-        if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-
-        if (path.includes('/videos')) return null;
-        if (/^\/(feed|watch|shorts|results|playlist|embed|live|gaming|account|premium|redirect)/.test(path)) return null;
-
-        const search = u.search;
-        const hash = u.hash;
-
-        let m = path.match(/^\/(@[^/]+)$/);
-        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
-        m = path.match(/^\/(@[^/]+)\/featured$/);
-        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
-
-        m = path.match(/^\/(channel\/UC[\w-]+)$/);
-        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
-        m = path.match(/^\/(channel\/UC[\w-]+)\/featured$/);
-        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
-
-        m = path.match(/^\/(c\/[^/]+)$/);
-        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
-        m = path.match(/^\/(user\/[^/]+)$/);
-        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
-
-        return null;
-    }
-
     class SpeedController {
         constructor() {
             this.video = null;
             this.container = null;
-            this._isApplying = false; // ループ防止フラグ
+            this._isApplying = false;
+            this.lastUrl = window.location.href; // URL監視用
 
-            // 設定の初期化（chrome.storage の読み込み完了後に init）
             if (window.ConfigManager) {
                 window.ConfigManager.setDefault('speed', 1.0);
                 window.ConfigManager.setDefault('autoVideoTab', false);
@@ -76,93 +33,77 @@ import './utils/config.js';
         }
 
         init() {
-            console.log('[YouTube Speed] Initializing SpeedController (JIT Mode)...');
+            console.log('[YouTube Speed] Initializing SpeedController (Redirect Mode)...');
+            
+            // 1. 初期ロード時のリダイレクトチェック
+            this.handleAutoVideoTabRedirect();
 
-            // 1. プレイヤー周りの監視 (MutationObserver)
-            this.observePlayerArea();
+            // 2. プレイヤーエリアとURLの監視開始
+            this.observeNavigationAndPlayer();
 
-            // 2. JITリンク書き換えリスナーの登録
-            this.setupJITLinkRewrite();
-
-            // 設定変更イベント（ポップアップからの反映など）の監視
+            // 設定変更の反映
             if (window.EventBus) {
                 window.EventBus.on('config:updated', ({ key, value }) => {
-                    if (key === 'speed') {
-                        this.applySpeed(value);
-                    }
+                    if (key === 'speed') this.applySpeed(value);
+                    if (key === 'autoVideoTab' && value) this.handleAutoVideoTabRedirect();
                 });
             }
 
-            // ストレージ変更の直接監視（設定変更の即時反映）
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
                 this._onStorageChanged = (changes, area) => {
-                    if (area !== 'local' || !changes[CONFIG_KEY]) return;
-                    window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => {
-                        this.syncVideoElement();
-                        this.updateActiveButton();
-                    });
+                    if (area === 'local' && changes[CONFIG_KEY]) {
+                        window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => {
+                            this.handleAutoVideoTabRedirect();
+                            this.syncVideoElement();
+                            this.updateActiveButton();
+                        });
+                    }
                 };
                 chrome.storage.onChanged.addListener(this._onStorageChanged);
             }
         }
 
         /**
-         * JITリンク書き換え：遷移イベントを直接フックして目的地を捻じ曲げる
+         * チャンネルホームにいる場合、自動的に動画タブへリダイレクトする
          */
-        setupJITLinkRewrite() {
-            // 1. YouTubeの内部遷移イベントをフック（これが一番確実）
-            document.addEventListener('yt-navigate-start', (e) => {
-                if (!window.ConfigManager || !window.ConfigManager.get('autoVideoTab')) return;
+        handleAutoVideoTabRedirect() {
+            if (!window.ConfigManager || !window.ConfigManager.get('autoVideoTab')) return;
+
+            const currentUrl = window.location.href;
+            // 指定された正規表現でチャンネルホームを判定
+            const isChannelHome = /^https:\/\/(www\.)?youtube\.com\/(@[^/]+|(c|user|channel)\/[^/]+)(\/featured)?\/?$/;
+
+            if (isChannelHome.test(currentUrl)) {
+                // 末尾の / や /featured を削って /videos を付与
+                const baseUrl = currentUrl.replace(/\/featured\/?$/, '').replace(/\/$/, '');
+                const targetUrl = baseUrl + '/videos';
                 
-                const detail = e.detail;
-                if (!detail || !detail.url) return;
-
-                const targetUrl = channelHomeToVideosUrl(detail.url);
-                if (targetUrl) {
-                    const newPath = new URL(targetUrl).pathname + new URL(targetUrl).search;
-                    // 遷移先URLを直接書き換える
-                    detail.url = newPath;
-                    console.log('[YouTube Speed] Navigation hooked & redirected to:', newPath);
-                }
-            }, { capture: true });
-
-            // 2. マウス操作時の属性書き換え（右クリックコピー等のため）
-            const mouseHandler = (e) => {
-                if (!window.ConfigManager || !window.ConfigManager.get('autoVideoTab')) return;
-
-                const anchor = e.target.closest('a');
-                if (!anchor) return;
-
-                const targetUrl = channelHomeToVideosUrl(anchor.href);
-                if (!targetUrl) return;
-
-                const path = new URL(targetUrl).pathname;
-                anchor.setAttribute('href', path);
-                console.log('[YouTube Speed] JIT Attribute rewrite:', path);
-            };
-
-            document.addEventListener('mousedown', mouseHandler, { capture: true });
-            document.addEventListener('contextmenu', mouseHandler, { capture: true });
+                console.log('[YouTube Speed] Redirecting to videos tab:', targetUrl);
+                window.location.replace(targetUrl);
+            }
         }
 
-
-
         /**
-         * プレイヤーエリアのみを監視（ボタン注入とビデオ要素同期用）
+         * プレイヤーエリアとURLの変更を同時に監視
          */
-        observePlayerArea() {
+        observeNavigationAndPlayer() {
             const observer = new MutationObserver(() => {
+                // URLが変更されたかチェック（SPA遷移対策）
+                if (this.lastUrl !== window.location.href) {
+                    this.lastUrl = window.location.href;
+                    this.handleAutoVideoTabRedirect();
+                }
+
+                // プレイヤーの注入とビデオ要素の同期
                 if (!this.container || !document.contains(this.container)) {
                     this.tryInject();
                 }
                 this.syncVideoElement();
             });
 
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
+            observer.observe(document.body, { childList: true, subtree: true });
         }
+
 
         /**
          * ビデオ要素を特定し、イベントリスナーを登録する
