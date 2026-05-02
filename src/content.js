@@ -16,46 +16,102 @@
         constructor() {
             this.video = null;
             this.container = null;
+            this._isApplying = false; // ループ防止フラグ
             
             // 設定の初期化
-            window.ConfigManager.setDefault('speed', 1.0);
-            window.ConfigManager.loadFromStorage(CONFIG_KEY);
+            if (window.ConfigManager) {
+                window.ConfigManager.setDefault('speed', 1.0);
+                window.ConfigManager.loadFromStorage(CONFIG_KEY);
+            }
             
             this.init();
         }
 
         init() {
-            console.log('[YouTube Speed] Initializing with ConfigManager...');
+            console.log('[YouTube Speed] Initializing SpeedController...');
             this.observeDOM();
             
-            // 設定変更イベントの監視
-            window.EventBus.on('config:updated', ({ key, value }) => {
-                if (key === 'speed') {
-                    this.applySpeed(value);
-                }
-            });
+            // 設定変更イベント（ボタンクリック時など）の監視
+            if (window.EventBus) {
+                window.EventBus.on('config:updated', ({ key, value }) => {
+                    if (key === 'speed') {
+                        this.applySpeed(value);
+                    }
+                });
+            }
         }
 
         /**
-         * DOMの変更を監視して、プレイヤーが現れたらボタンを注入する
+         * DOMの変更を監視して、プレイヤーが現れたらボタンを注入し、
+         * ビデオ要素の状態をチェックする
          */
         observeDOM() {
-            const observer = new MutationObserver((mutations) => {
+            const observer = new MutationObserver(() => {
+                // コントロールバーへのボタン注入チェック
                 if (!this.container || !document.contains(this.container)) {
                     this.tryInject();
                 }
                 
-                const currentVideo = document.querySelector(VIDEO_SELECTOR);
-                if (currentVideo && currentVideo !== this.video) {
-                    this.video = currentVideo;
-                    this.applySpeed(window.ConfigManager.get('speed'));
-                }
+                // ビデオ要素の監視
+                this.syncVideoElement();
             });
 
             observer.observe(document.body, {
                 childList: true,
                 subtree: true
             });
+
+            // 初回実行
+            this.syncVideoElement();
+        }
+
+        /**
+         * ビデオ要素を特定し、イベントリスナーを登録する
+         */
+        syncVideoElement() {
+            const currentVideo = document.querySelector(VIDEO_SELECTOR);
+            if (!currentVideo) return;
+
+            // 新しいビデオ要素が見つかった、または要素が入れ替わった場合
+            if (currentVideo !== this.video) {
+                console.log('[YouTube Speed] New video element detected.');
+                this.video = currentVideo;
+                this.attachVideoEvents();
+                this.applySpeed(window.ConfigManager.get('speed'));
+            } else {
+                // 要素は同じだが、速度が設定値とズレていないかチェック（念のため）
+                this.checkAndFixSpeed();
+            }
+        }
+
+        /**
+         * ビデオ要素にイベントリスナーを登録
+         */
+        attachVideoEvents() {
+            if (!this.video) return;
+
+            // YouTube側による速度変更を検知
+            this.video.addEventListener('ratechange', () => {
+                if (this._isApplying) return; // 自分が変えた時は無視
+                this.checkAndFixSpeed();
+            });
+
+            // 動画の読み込み時や再生開始時にも再適用
+            this.video.addEventListener('loadedmetadata', () => this.applySpeed(window.ConfigManager.get('speed')));
+            this.video.addEventListener('play', () => this.applySpeed(window.ConfigManager.get('speed')));
+        }
+
+        /**
+         * 現在の再生速度が設定値と異なる場合に強制適用する
+         */
+        checkAndFixSpeed() {
+            if (!this.video || this._isApplying) return;
+            
+            const targetSpeed = window.ConfigManager.get('speed');
+            if (this.video.playbackRate !== targetSpeed) {
+                console.log(`[YouTube Speed] Speed mismatch detected (${this.video.playbackRate}x -> ${targetSpeed}x). Fixing...`);
+                this.applySpeed(targetSpeed);
+            }
         }
 
         /**
@@ -101,11 +157,20 @@
          * 実際の再生速度への反映
          */
         applySpeed(speed) {
-            this.video = document.querySelector(VIDEO_SELECTOR);
+            if (!this.video) {
+                this.video = document.querySelector(VIDEO_SELECTOR);
+            }
+
             if (this.video) {
-                this.video.playbackRate = speed;
-                this.updateActiveButton();
-                console.log(`[YouTube Speed] Applied speed: ${speed}`);
+                try {
+                    this._isApplying = true;
+                    this.video.playbackRate = speed;
+                    this.updateActiveButton();
+                    // 少し遅延させてフラグを戻す（連続発生するイベントへの対策）
+                    setTimeout(() => { this._isApplying = false; }, 100);
+                } catch (e) {
+                    this._isApplying = false;
+                }
             }
         }
 
@@ -130,10 +195,10 @@
 
     // 実行
     const start = () => {
-        if (window.ConfigManager) {
+        if (window.ConfigManager && window.EventBus) {
             new SpeedController();
         } else {
-            // ConfigManagerがロードされるのを待つ（Viteのバンドル順序に依存する場合）
+            // 依存モジュールのロード待ち
             setTimeout(start, 50);
         }
     };
