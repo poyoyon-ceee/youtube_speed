@@ -7,12 +7,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.youtube.com/*"],
-      "js": [
-        "src/core/event-bus.js",
-        "src/core/state-manager.js",
-        "src/utils/config.js",
-        "src/content.js"
-      ],
+      "js": ["src/content.js"],
       "css": ["src/content.css"]
     }
   ],

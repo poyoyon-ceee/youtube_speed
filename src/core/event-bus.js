@@ -57,6 +57,10 @@ class EventBus {
 }
 
 // グローバルインスタンス
+const eventBusInstance = new EventBus();
 if (typeof window !== 'undefined') {
-    window.EventBus = new EventBus();
+    window.EventBus = eventBusInstance;
 }
+
+export default eventBusInstance;
+export { EventBus };

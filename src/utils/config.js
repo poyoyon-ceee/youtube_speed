@@ -134,6 +134,10 @@ class ConfigManager {
     }
 }
 
+const configManagerInstance = new ConfigManager();
 if (typeof window !== 'undefined') {
-    window.ConfigManager = new ConfigManager();
+    window.ConfigManager = configManagerInstance;
 }
+
+export default configManagerInstance;
+export { ConfigManager };

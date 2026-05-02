@@ -3,6 +3,10 @@
  * ワンクリックで再生速度を変更する拡張機能のメインロジック
  */
 
+import './core/event-bus.js';
+import './core/state-manager.js';
+import './utils/config.js';
+
 (function() {
     'use strict';
 

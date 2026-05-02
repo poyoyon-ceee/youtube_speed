@@ -1,4 +1,7 @@
 // ポップアップの初期化ロジック
+import '../core/event-bus.js';
+import '../utils/config.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ アプリケーション起動');
 

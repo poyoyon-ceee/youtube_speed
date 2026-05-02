@@ -45,6 +45,10 @@ class StateManager {
 }
 
 // グローバルインスタンス
+const stateManagerInstance = new StateManager();
 if (typeof window !== 'undefined') {
-    window.StateManager = new StateManager();
+    window.StateManager = stateManagerInstance;
 }
+
+export default stateManagerInstance;
+export { StateManager };
