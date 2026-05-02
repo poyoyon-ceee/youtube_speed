@@ -60,3 +60,57 @@ h1 {
 .info-section li {
     margin-bottom: 5px;
 }
+
+/* 追加の設定項目スタイル */
+.setting-item {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
+}
+
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-switch .label-text {
+    font-size: 13px;
+    color: #eee;
+}
+
+.toggle-switch input {
+    display: none;
+}
+
+/* スライダーの見た目 */
+.slider {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background-color: #333;
+    border-radius: 20px;
+    transition: .3s ease;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    border-radius: 50%;
+    transition: .3s ease;
+}
+
+input:checked + .slider {
+    background-color: #ff0000; /* YouTube Red */
+}
+
+input:checked + .slider:before {
+    transform: translateX(16px);
+}

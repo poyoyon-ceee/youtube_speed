@@ -17,10 +17,12 @@
             this.video = null;
             this.container = null;
             this._isApplying = false; // ループ防止フラグ
+            this._lastUrl = location.href; // URL変更検知用
             
             // 設定の初期化
             if (window.ConfigManager) {
                 window.ConfigManager.setDefault('speed', 1.0);
+                window.ConfigManager.setDefault('autoVideoTab', false);
                 window.ConfigManager.loadFromStorage(CONFIG_KEY);
             }
             
@@ -39,6 +41,20 @@
                     }
                 });
             }
+
+            // YouTube特有の遷移イベントを監視 (SPA対応)
+            window.addEventListener('yt-navigate-finish', () => {
+                console.log('[YouTube Speed] Navigation finished.');
+                this.handleRedirect();
+            });
+
+            // ブラウザの戻る・進むボタンに対応
+            window.addEventListener('popstate', () => {
+                this.handleRedirect();
+            });
+
+            // 初回実行時
+            this.handleRedirect();
         }
 
         /**
@@ -47,6 +63,12 @@
          */
         observeDOM() {
             const observer = new MutationObserver(() => {
+                // URLが変更されていたらリダイレクトチェック
+                if (location.href !== this._lastUrl) {
+                    this._lastUrl = location.href;
+                    this.handleRedirect();
+                }
+
                 // コントロールバーへのボタン注入チェック
                 if (!this.container || !document.contains(this.container)) {
                     this.tryInject();
@@ -63,6 +85,29 @@
 
             // 初回実行
             this.syncVideoElement();
+        }
+
+        /**
+         * チャンネルホームを動画タブに自動リダイレクトする
+         */
+        handleRedirect() {
+            if (!window.ConfigManager || !window.ConfigManager.get('autoVideoTab')) return;
+
+            const url = window.location.href;
+            // 判定: youtube.com/@user または youtube.com/@user/featured (末尾の / は任意)
+            const channelHomeRegex = /^https?:\/\/(www\.)?youtube\.com\/(@[^/?#]+)(\/featured)?\/?(\?.*)?(#.*)?$/;
+            const match = url.match(channelHomeRegex);
+
+            if (match) {
+                const username = match[2];
+                const search = match[4] || '';
+                const hash = match[5] || '';
+                // 動画タブのURLを構築
+                const targetUrl = `https://www.youtube.com/${username}/videos${search}${hash}`;
+                
+                console.log(`[YouTube Speed] Redirecting to videos tab: ${targetUrl}`);
+                window.location.replace(targetUrl);
+            }
         }
 
         /**

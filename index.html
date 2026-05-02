@@ -21,6 +21,14 @@
         </div>
         
         <div class="info-section">
+            <div class="setting-item">
+                <label class="toggle-switch">
+                    <span class="label-text">チャンネル時に「動画」タブへ</span>
+                    <input type="checkbox" id="auto-video-tab-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
             <h3>ショートカット</h3>
             <ul>
                 <li>[ 1.0 ] - 標準速度</li>
@@ -39,22 +47,6 @@
     <script type="module" src="src/utils/migration.js"></script>
     <script type="module" src="src/utils/config.js"></script>
     <script type="module" src="src/utils/diff.js"></script>
-    
-    <script>
-        // アプリケーション初期化
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('✅ アプリケーション起動');
-            
-            // EventBusが利用可能な場合
-            if (window.EventBus) {
-                console.log('✅ EventBus 利用可能');
-            }
-            
-            // StateManagerが利用可能な場合
-            if (window.StateManager) {
-                console.log('✅ StateManager 利用可能');
-            }
-        });
-    </script>
+    <script type="module" src="src/ui/popup.js"></script>
 </body>
 </html>

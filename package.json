@@ -1,6 +1,6 @@
 {
   "name": "youtube_speed",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "youtubeのspeedコントロール拡張",
   "private": true,
   "type": "module",
