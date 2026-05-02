@@ -12,12 +12,65 @@
     const VIDEO_SELECTOR = 'video.html5-main-video';
     const CONFIG_KEY = 'yt_speed_settings';
 
+    /**
+     * チャンネル「ホーム」相当の URL を「動画」タブ URL に変換する。変換不要なら null。
+     * @param {string} fullHref
+     * @returns {string|null}
+     */
+    function channelHomeToVideosUrl(fullHref) {
+        if (!fullHref || typeof fullHref !== 'string') return null;
+        let u;
+        try {
+            u = new URL(fullHref);
+        } catch (e) {
+            return null;
+        }
+        const host = u.hostname.replace(/^www\./, '');
+        if (host !== 'youtube.com' && host !== 'm.youtube.com') return null;
+
+        let path = u.pathname;
+        if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+
+        if (path.includes('/videos')) return null;
+        if (/^\/(feed|watch|shorts|results|playlist|embed|live|gaming|account|premium|redirect)/.test(path)) return null;
+
+        const search = u.search;
+        const hash = u.hash;
+
+        let m = path.match(/^\/(@[^/]+)$/);
+        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
+        m = path.match(/^\/(@[^/]+)\/featured$/);
+        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
+
+        m = path.match(/^\/(channel\/UC[\w-]+)$/);
+        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
+        m = path.match(/^\/(channel\/UC[\w-]+)\/featured$/);
+        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
+
+        m = path.match(/^\/(c\/[^/]+)$/);
+        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
+        m = path.match(/^\/(user\/[^/]+)$/);
+        if (m) return `${u.origin}/${m[1]}/videos${search}${hash}`;
+
+        return null;
+    }
+
+    function getGuideLinkRoots() {
+        const roots = [];
+        const inner = document.querySelector('#guide-inner-content');
+        if (inner) roots.push(inner);
+        const mini = document.querySelector('ytd-mini-guide-renderer');
+        if (mini) roots.push(mini);
+        return roots;
+    }
+
     class SpeedController {
         constructor() {
             this.video = null;
             this.container = null;
             this._isApplying = false; // ループ防止フラグ
             this._lastUrl = location.href; // URL変更検知用
+            this._rewriteGuideTimer = null;
             
             // 設定の初期化（chrome.storage の読み込み完了後に init）
             if (window.ConfigManager) {
@@ -46,6 +99,7 @@
             window.addEventListener('yt-navigate-finish', () => {
                 console.log('[YouTube Speed] Navigation finished.');
                 this.handleRedirect();
+                this.scheduleRewriteSubscriptionGuideLinks();
             });
 
             // ブラウザの戻る・進むボタンに対応
@@ -59,6 +113,7 @@
                     if (area !== 'local' || !changes[CONFIG_KEY]) return;
                     window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => {
                         this.handleRedirect();
+                        this.rewriteSubscriptionGuideLinks();
                         this.syncVideoElement();
                         this.updateActiveButton();
                     });
@@ -68,6 +123,44 @@
 
             // 初回実行時
             this.handleRedirect();
+            this.scheduleRewriteSubscriptionGuideLinks();
+        }
+
+        /**
+         * 左ガイド（展開・ミニ）内のチャンネルホームリンクを動画タブ URL に書き換える。
+         * autoVideoTab OFF 時は保存した元 href を復元する。
+         */
+        scheduleRewriteSubscriptionGuideLinks() {
+            if (this._rewriteGuideTimer) clearTimeout(this._rewriteGuideTimer);
+            this._rewriteGuideTimer = setTimeout(() => {
+                this._rewriteGuideTimer = null;
+                this.rewriteSubscriptionGuideLinks();
+            }, 120);
+        }
+
+        rewriteSubscriptionGuideLinks() {
+            const enabled = window.ConfigManager && window.ConfigManager.get('autoVideoTab');
+            const roots = getGuideLinkRoots();
+            if (!roots.length) return;
+
+            const dataOrig = 'ytSpeedOrigHref';
+
+            roots.forEach((root) => {
+                root.querySelectorAll('a[href]').forEach((a) => {
+                    if (enabled) {
+                        const resolved = a.href;
+                        const target = channelHomeToVideosUrl(resolved);
+                        if (!target || target === resolved) return;
+                        if (!a.dataset[dataOrig]) {
+                            a.dataset[dataOrig] = a.getAttribute('href') || resolved;
+                        }
+                        a.setAttribute('href', target);
+                    } else if (a.dataset[dataOrig]) {
+                        a.setAttribute('href', a.dataset[dataOrig]);
+                        delete a.dataset[dataOrig];
+                    }
+                });
+            });
         }
 
         /**
@@ -81,6 +174,8 @@
                     this._lastUrl = location.href;
                     this.handleRedirect();
                 }
+
+                this.scheduleRewriteSubscriptionGuideLinks();
 
                 // コントロールバーへのボタン注入チェック
                 if (!this.container || !document.contains(this.container)) {

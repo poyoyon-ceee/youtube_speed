@@ -2,9 +2,14 @@
 
 YouTubeチャンネルのホーム（@ユーザー名）にアクセスした際、自動的に「動画」タブへ遷移する機能を追加しました。
 
+## 登録チャンネル（左ガイド）の `href` 書き換え
+
+「チャンネル時に『動画』タブへ」が ON のとき、`#guide-inner-content` および `ytd-mini-guide-renderer` 内の `<a href>` のうち、チャンネルホーム相当（`/@…`、`/channel/UC…`、`/c/…`、`/user/…` および `/featured`）を検出し、**遷移前に** `…/videos` 付き URL に書き換える。元の `href` は `data-yt-speed-orig-href` に保持し、設定OFF時に復元する。
+
 ## 変更点
 
 ### 1. コンテンツスクリプト (`src/content.js`)
+- 左ガイド向けに `rewriteSubscriptionGuideLinks()` / `scheduleRewriteSubscriptionGuideLinks()` と `channelHomeToVideosUrl()` を追加しました。
 - `SpeedController` クラスに `handleRedirect()` メソッドを実装しました。
 - `MutationObserver` の監視対象に `handleRedirect()` を含め、YouTubeのSPA遷移（ページ読み込みなしの遷移）でもURLの変化を検知してリダイレクトするようにしました。
 - 正規表現を用いて、チャンネルホーム（`/@username` または `/@username/featured`）のみを対象とし、`/videos` タブへリダイレクトします。
