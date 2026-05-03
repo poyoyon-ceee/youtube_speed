@@ -21,11 +21,9 @@ import './utils/config.js';
             this.video = null;
             this.container = null;
             this._isApplying = false;
-            this.lastUrl = window.location.href; // URL監視用
 
             if (window.ConfigManager) {
                 window.ConfigManager.setDefault('speed', 1.0);
-                window.ConfigManager.setDefault('autoVideoTab', false);
                 window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => this.init());
             } else {
                 this.init();
@@ -33,19 +31,15 @@ import './utils/config.js';
         }
 
         init() {
-            console.log('[YouTube Speed] Initializing SpeedController (Redirect Mode)...');
+            console.log('[YouTube Speed] Initializing SpeedController (Speed Only Mode)...');
             
-            // 1. 初期ロード時のリダイレクトチェック
-            this.handleAutoVideoTabRedirect();
-
-            // 2. プレイヤーエリアとURLの監視開始
-            this.observeNavigationAndPlayer();
+            // プレイヤーエリアの監視開始
+            this.observePlayerArea();
 
             // 設定変更の反映
             if (window.EventBus) {
                 window.EventBus.on('config:updated', ({ key, value }) => {
                     if (key === 'speed') this.applySpeed(value);
-                    if (key === 'autoVideoTab' && value) this.handleAutoVideoTabRedirect();
                 });
             }
 
@@ -53,7 +47,6 @@ import './utils/config.js';
                 this._onStorageChanged = (changes, area) => {
                     if (area === 'local' && changes[CONFIG_KEY]) {
                         window.ConfigManager.loadFromStorage(CONFIG_KEY).then(() => {
-                            this.handleAutoVideoTabRedirect();
                             this.syncVideoElement();
                             this.updateActiveButton();
                         });
@@ -64,37 +57,10 @@ import './utils/config.js';
         }
 
         /**
-         * チャンネルホームにいる場合、自動的に動画タブへリダイレクトする
+         * プレイヤーエリアのみを監視（ボタン注入とビデオ要素同期用）
          */
-        handleAutoVideoTabRedirect() {
-            if (!window.ConfigManager || !window.ConfigManager.get('autoVideoTab')) return;
-
-            const currentUrl = window.location.href;
-            // 指定された正規表現でチャンネルホームを判定
-            const isChannelHome = /^https:\/\/(www\.)?youtube\.com\/(@[^/]+|(c|user|channel)\/[^/]+)(\/featured)?\/?$/;
-
-            if (isChannelHome.test(currentUrl)) {
-                // 末尾の / や /featured を削って /videos を付与
-                const baseUrl = currentUrl.replace(/\/featured\/?$/, '').replace(/\/$/, '');
-                const targetUrl = baseUrl + '/videos';
-                
-                console.log('[YouTube Speed] Redirecting to videos tab:', targetUrl);
-                window.location.replace(targetUrl);
-            }
-        }
-
-        /**
-         * プレイヤーエリアとURLの変更を同時に監視
-         */
-        observeNavigationAndPlayer() {
+        observePlayerArea() {
             const observer = new MutationObserver(() => {
-                // URLが変更されたかチェック（SPA遷移対策）
-                if (this.lastUrl !== window.location.href) {
-                    this.lastUrl = window.location.href;
-                    this.handleAutoVideoTabRedirect();
-                }
-
-                // プレイヤーの注入とビデオ要素の同期
                 if (!this.container || !document.contains(this.container)) {
                     this.tryInject();
                 }
@@ -103,6 +69,8 @@ import './utils/config.js';
 
             observer.observe(document.body, { childList: true, subtree: true });
         }
+
+
 
 
         /**
